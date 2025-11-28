@@ -1,7 +1,8 @@
 package com.ruchira.murex.service;
 
-import com.ruchira.murex.kafka.model.HAWKMurexBookingRecord;
+import com.ruchira.murex.downstream.model.HAWKMurexBookingRecord;
 import com.ruchira.murex.model.Currency;
+import com.ruchira.murex.strategy.datafetch.DataFetchStrategyFactory;
 import com.ruchira.murex.util.ConcurrencyUtil;
 import com.ruchira.murex.dto.InstructionRequestDto;
 import com.ruchira.murex.dto.StgMrxExtDmcDto;
@@ -33,6 +34,7 @@ public class InboundInstructionProcessingService {
     private final MurexDownStreamProcessAdapter murexDownStreamProcessAdapter;
     private final JsonParser jsonParser;
     private final MurexDataTransformationService murexDataTransformationService;
+    private final DataFetchStrategyFactory dataFetchStrategyFactory;
 
 
     /**
@@ -61,8 +63,8 @@ public class InboundInstructionProcessingService {
         log.info("Processing instruction event: {}", instructionRequestDto.getInstructionEvent());
         long start = System.currentTimeMillis();
         try {
-            // Step 1: fetch aggregated data
-            List<AggregatedDataResponse> results = fetchAggregatedData(instructionRequestDto);
+            // Step 1: fetch aggregated data (event-specific response types)
+            List<? extends BaseAggregatedDataResponse> results = fetchAggregatedData(instructionRequestDto);
 
             // Step 2: group and validate records
             List<GroupedRecord> groupedRecords = groupAndValidate(results);
@@ -72,8 +74,13 @@ public class InboundInstructionProcessingService {
             List<String> currenciesInFamily = extractCurrencies(currencies);
             Map<String, InstructionEventConfig> ruleMap = fetchBusinessEventRuleMap(instructionRequestDto, currencies);
 
-            // Step 4: process records
-            RecordProcessingResult processingResult = processGroupedRecords(groupedRecords, instructionRequestDto, ruleMap, currenciesInFamily);
+            // Step 4: process records (now event-aware)
+            RecordProcessingResult processingResult = processGroupedRecords(
+                    groupedRecords,
+                    instructionRequestDto,
+                    ruleMap,
+                    currenciesInFamily
+            );
 
 
             //Step 5: Insert StgMrxExtDmc Data to Database
@@ -126,12 +133,20 @@ public class InboundInstructionProcessingService {
 
     /**
      * Fetches raw aggregated data required for processing instructions.
+     * Uses event-specific data fetch strategy to enable different queries per instruction event.
+     *
+     * <p>Returns event-specific response types:
+     * - Inception: {@link InceptionAggregatedDataResponse} (base + hn/ha/he fields)
+     * - RolledOver: {@link RolledOverAggregatedDataResponse} (base hstg fields only)
+     * </p>
      *
      * @param dto The instruction request DTO containing filter criteria
-     * @return List of aggregated data responses
+     * @return List of event-specific aggregated data responses
      */
-    private List<AggregatedDataResponse> fetchAggregatedData(InstructionRequestDto dto) {
-        return tradeDataHandlerService.fetchData(dto.getBusinessDate(), dto.getExternalTradeIds(), dto.getHedgeInstrumentType(), dto.getCurrency());
+    private List<? extends BaseAggregatedDataResponse> fetchAggregatedData(InstructionRequestDto dto) {
+        // Use strategy pattern to fetch data based on instruction event type
+        // Returns InceptionAggregatedDataResponse or RolledOverAggregatedDataResponse
+        return dataFetchStrategyFactory.getStrategy(dto.getInstructionEvent()).fetchData(dto);
     }
 
 
@@ -153,10 +168,16 @@ public class InboundInstructionProcessingService {
      * Performs grouping and validation of the raw aggregated data.
      * This ensures that records are prepared and validated before business rules are applied.
      *
+     * <p>Works with both event types due to polymorphism:
+     * - Inception: InceptionAggregatedDataResponse
+     * - RolledOver: RolledOverAggregatedDataResponse
+     * Both extend BaseAggregatedDataResponse.
+     * </p>
+     *
      * @param results Raw aggregated results fetched from data service
-     * @return Grouped and validated records
+     * @return Grouped and validated records containing BaseAggregatedDataResponse
      */
-    private List<GroupedRecord> groupAndValidate(List<AggregatedDataResponse> results) {
+    private List<GroupedRecord> groupAndValidate(List<? extends BaseAggregatedDataResponse> results) {
         return tradeDataHandlerService.performGroupingAndValidation(results);
     }
 
@@ -198,9 +219,10 @@ public class InboundInstructionProcessingService {
      * This ensures that trades are published only if all grouped records are processed successfully.
      *
      * @param record              Grouped record being processed
-     * @param dto                 Instruction request DTO providing context
+     * @param dto                 Instruction request DTO providing context (includes instructionEvent)
      * @param ruleMap             Precomputed map of navType -> InstructionEventConfig
      * @param groupedRecords      Complete list of grouped records (for context in booking generation)
+     * @param currenciesInFamily  List of currency variants in the same family
      */
     private RecordProcessingResult processRecord(GroupedRecord record,
                                                  InstructionRequestDto dto,
@@ -218,10 +240,16 @@ public class InboundInstructionProcessingService {
         // Step 1: fetch murex booking configs linked to this rule
         List<MurexBookingConfig> bookConfigs = tradeDataHandlerService.fetchMurexBookConfigs(ruleConfig.getRuleId());
 
-        // Step 2: generate bookings using record configs
-
-        return generateMurexBookings(record, bookConfigs, dto.getCurrency(), ruleConfig.getRuleId(), groupedRecords, currenciesInFamily);
-
+        // Step 2: generate bookings using record configs (now event-aware)
+        return generateMurexBookings(
+                record,
+                bookConfigs,
+                dto.getCurrency(),
+                ruleConfig.getRuleId(),
+                groupedRecords,
+                currenciesInFamily,
+                dto.getInstructionEvent() // Pass instruction event for strategy selection
+        );
     }
 
 
@@ -282,7 +310,9 @@ public class InboundInstructionProcessingService {
      * @param inputCurrency          Input currency for transformation and calculation logic
      * @param instructionEventRuleId Identifier for the instruction event rule driving transformation logic
      * @param groupedRecords         Additional grouped records that may influence transformation logic
-     * @return A pair containing:
+     * @param currenciesInFamily     List of currency variants in the same family
+     * @param instructionEvent       The instruction event type (e.g., "Inception", "RolledOver")
+     * @return A RecordProcessingResult containing:
      * <ul>
      *   <li>List of transformed {@link StgMrxExtDmcDto} booking DTOs</li>
      *   <li>List of corresponding {@link MurexTrade} trade details</li>
@@ -293,11 +323,16 @@ public class InboundInstructionProcessingService {
                                                         String inputCurrency,
                                                         String instructionEventRuleId,
                                                         List<GroupedRecord> groupedRecords,
-                                                        List<String> currenciesInFamily) {
+                                                        List<String> currenciesInFamily,
+                                                        String instructionEvent) {
 
         // Step 1: Filter MurexBookConfig records based on typology matching (reuse existing logic)
         List<MurexBookingConfig> filteredMurexConfigs = filterMurexConfigsByTypology(murexConfigs, groupedRecord.getTypology());
+
+        // Step 2: Build transformation context with instruction event information
+        // This enables event-aware strategy selection
         TransformationContext transformationContext = TransformationContext.builder()
+                .instructionEvent(instructionEvent) // Event type for strategy selection
                 .filteredMurexConfigs(filteredMurexConfigs)
                 .groupedRecord(groupedRecord)
                 .inputCurrency(inputCurrency)
@@ -308,7 +343,7 @@ public class InboundInstructionProcessingService {
             transformationContext.setAllGroupedRecords(groupedRecords);
         }
 
-        // Step 2: Pass to advanced transformation service for booking generation
+        // Step 3: Pass to advanced transformation service for booking generation
         return murexDataTransformationService.generateMurexBookings(transformationContext);
     }
 

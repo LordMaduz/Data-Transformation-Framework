@@ -15,15 +15,20 @@ import java.util.List;
  * mandatory and optional fields depending on the transformation needs.</p>
  *
  * <ul>
+ *   <li>{@code instructionEvent} – The instruction event type (e.g., "Inception", "RolledOver")</li>
  *   <li>{@code groupedRecord} – The primary grouped record to process</li>
  *   <li>{@code instructionEventRuleId} – Identifier for the instruction event rule</li>
  *   <li>{@code filteredMurexConfigs} – List of Murex book configurations filtered for processing</li>
  *   <li>{@code inputCurrency} – Input currency used for transformation calculations</li>
+ *   <li>{@code currenciesInFamily} – List of currency variants in the same family</li>
  *   <li>{@code allGroupedRecords} – (Optional) All grouped records, if the transformation
  *       requires context across multiple records</li>
  * </ul>
  */
 public class TransformationContext {
+    // Event identifier - enables event-specific transformation logic
+    private String instructionEvent;
+
     private GroupedRecord groupedRecord;
     private String instructionEventRuleId;
     private List<MurexBookingConfig> filteredMurexConfigs;

@@ -1,6 +1,6 @@
-package com.ruchira.murex.kafka.consumer;
+package com.ruchira.murex.downstream.kafka.consumer;
 
-import com.ruchira.murex.kafka.model.HAWKMurexBookingRecord;
+import com.ruchira.murex.downstream.model.HAWKMurexBookingRecord;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;

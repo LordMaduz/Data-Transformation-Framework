@@ -1,6 +1,6 @@
-package com.ruchira.murex.kafka.config;
+package com.ruchira.murex.downstream.kafka.config;
 
-import com.ruchira.murex.kafka.model.HAWKMurexBookingRecord;
+import com.ruchira.murex.downstream.model.HAWKMurexBookingRecord;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.SerializationException;
 import org.springframework.context.annotation.Bean;

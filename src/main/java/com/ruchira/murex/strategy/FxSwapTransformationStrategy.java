@@ -51,8 +51,12 @@ public class FxSwapTransformationStrategy extends TransformationStrategy {
     }
 
     @Override
-    public boolean supports(String typology) {
-        return FX_SWAP_TYPOLOGY.equals(typology);
+    public boolean supports(String instructionEvent, String typology) {
+        // This strategy handles Inception + FX Swap combination
+        // Accepts null event for backward compatibility
+        boolean eventMatch = instructionEvent == null || "Inception".equalsIgnoreCase(instructionEvent);
+        boolean typologyMatch = FX_SWAP_TYPOLOGY.equals(typology);
+        return eventMatch && typologyMatch;
     }
 
     @Override
@@ -140,11 +144,12 @@ public class FxSwapTransformationStrategy extends TransformationStrategy {
     }
 
     /**
-     * Create base TransformedMurexTrade objects from FetchDataResponse records
+     * Create base TransformedMurexTrade objects from aggregated data records.
+     * Works with both Inception and RolledOver events using base fields.
      */
-    private List<TransformedMurexTrade> createBaseBookings(List<AggregatedDataResponse> records) {
+    private List<TransformedMurexTrade> createBaseBookings(List<BaseAggregatedDataResponse> records) {
         List<TransformedMurexTrade> bookings = new ArrayList<>();
-        for (AggregatedDataResponse record : records) {
+        for (BaseAggregatedDataResponse record : records) {
             TransformedMurexTrade transformedMurexTrade = dynamicMapper.mapToMurexTradeLeg(record);
             bookings.add(transformedMurexTrade);
         }

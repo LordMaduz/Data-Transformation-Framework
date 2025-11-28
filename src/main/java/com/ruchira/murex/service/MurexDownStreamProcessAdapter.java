@@ -1,11 +1,11 @@
 package com.ruchira.murex.service;
 
 import com.ruchira.murex.exception.BusinessException;
-import com.ruchira.murex.kafka.model.HAWKMurexBookingRecord;
-import com.ruchira.murex.kafka.model.HAWKMurexBookingTradeLeg;
-import com.ruchira.murex.kafka.model.HawkMurexBookingTradeLegAdditionalFields;
-import com.ruchira.murex.kafka.model.HawkMurexBookingTradeLegComponent;
-import com.ruchira.murex.kafka.producer.KafkaPublisherHandler;
+import com.ruchira.murex.downstream.model.HAWKMurexBookingRecord;
+import com.ruchira.murex.downstream.model.HAWKMurexBookingTradeLeg;
+import com.ruchira.murex.downstream.model.HawkMurexBookingTradeLegAdditionalFields;
+import com.ruchira.murex.downstream.model.HawkMurexBookingTradeLegComponent;
+import com.ruchira.murex.downstream.kafka.producer.KafkaPublisherHandler;
 import com.ruchira.murex.mapper.HawkMurexBookingMapper;
 import com.ruchira.murex.model.trade.MurexTrade;
 import com.ruchira.murex.model.trade.MurexTradeLeg;

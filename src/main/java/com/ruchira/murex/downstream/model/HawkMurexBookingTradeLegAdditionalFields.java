@@ -1,4 +1,4 @@
-package com.ruchira.murex.kafka.model;
+package com.ruchira.murex.downstream.model;
 
 import lombok.Data;
 

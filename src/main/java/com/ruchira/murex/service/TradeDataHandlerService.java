@@ -4,13 +4,10 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.ruchira.murex.constant.Constants;
 import com.ruchira.murex.dto.StgMrxExtDmcDto;
 import com.ruchira.murex.freemaker.FtlQueryBuilder;
-import com.ruchira.murex.kafka.model.HAWKMurexBookingRecord;
-import com.ruchira.murex.model.AggregatedDataResponse;
-import com.ruchira.murex.model.Currency;
-import com.ruchira.murex.model.GroupedRecord;
-import com.ruchira.murex.model.InstructionEventConfig;
-import com.ruchira.murex.model.MurexBookingConfig;
+import com.ruchira.murex.downstream.model.HAWKMurexBookingRecord;
+import com.ruchira.murex.model.*;
 import com.ruchira.murex.exception.ValidationException;
+import com.ruchira.murex.model.Currency;
 import com.ruchira.murex.model.trade.MurexTrade;
 import com.ruchira.murex.model.trade.MurexTradeLeg;
 import com.ruchira.murex.model.trade.MurexTradeLegComponent;
@@ -228,36 +225,75 @@ public class TradeDataHandlerService {
     }
 
     /**
+     * Creates an event-aware grouping key for a record.
+     *
+     * <p>Grouping strategy:
+     * - Inception: (contract, comment0, navType) - navType from allocation table
+     * - RolledOver: (contract, comment0, "") - no navType available
+     * </p>
+     *
+     * @param record The aggregated data record
+     * @return GroupingKey for grouping records
+     */
+    private GroupingKey createGroupingKey(BaseAggregatedDataResponse record) {
+        String contract = record.getContract();
+        String comment0 = record.getComment0();
+        String navType;
+
+        // Inception has navType from allocation table (ha), RolledOver doesn't
+        if (record instanceof InceptionAggregatedDataResponse) {
+            navType = ((InceptionAggregatedDataResponse) record).getNavType();
+        } else {
+            // RolledOver or other events without navType
+            navType = ""; // Use empty string for events without navType
+        }
+
+        return new GroupingKey(contract, comment0, navType);
+    }
+
+    /**
      * Grouping & Validating Results
-     * Groups the fetch results by external_deal_id, comment_0, and nav_type.
-     * Validates that each group has the correct number of records based on typology:
+     * Groups the fetch results using event-aware grouping keys.
+     * Validates that each group has the correct number of records based on typology.
+     *
+     * <p>Grouping strategy varies by event type:
+     * - Inception: Groups by (contract, comment0, navType)
+     * - RolledOver: Groups by (contract, comment0) only - navType is null/empty
+     * </p>
+     *
+     * <p>Validation rules:
      * - FX Spot: exactly 1 record per group
      * - FX Swap: exactly 2 records per group
+     * - NDF: exactly 2 records per group
+     * </p>
      *
      * @param fetchResults List of records from Stage 1 fetch operation
      * @return List of validated GroupedRecord objects
      * @throws ValidationException if validation rules are violated
      */
-    public List<GroupedRecord> performGroupingAndValidation(List<AggregatedDataResponse> fetchResults) {
+    public List<GroupedRecord> performGroupingAndValidation(List<? extends BaseAggregatedDataResponse> fetchResults) {
 
-        // Group by contract, comment_0, and nav_type
-        Map<GroupingKey, List<AggregatedDataResponse>> groupedMap = fetchResults.stream()
-                .collect(Collectors.groupingBy(record ->
-                        new GroupingKey(record.getContract(), record.getComment0(), record.getNavType())));
+        if (fetchResults.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // Group using event-appropriate key (Inception uses navType, RolledOver doesn't)
+        Map<GroupingKey, List<BaseAggregatedDataResponse>> groupedMap = fetchResults.stream()
+                .collect(Collectors.groupingBy(this::createGroupingKey));
 
 
         List<GroupedRecord> validatedGroups = new ArrayList<>();
 
-        for (Map.Entry<GroupingKey, List<AggregatedDataResponse>> entry : groupedMap.entrySet()) {
+        for (Map.Entry<GroupingKey, List<BaseAggregatedDataResponse>> entry : groupedMap.entrySet()) {
             GroupingKey groupKey = entry.getKey();
-            List<AggregatedDataResponse> records = entry.getValue();
+            List<BaseAggregatedDataResponse> records = entry.getValue();
 
             if (records.isEmpty()) {
                 continue; // Skip empty groups
             }
 
             // Extract group identifiers from first record (all records in group should have same values)
-            AggregatedDataResponse firstRecord = records.getFirst();
+            BaseAggregatedDataResponse firstRecord = records.getFirst();
             GroupedRecord groupedRecord = getGroupedRecord(records, groupKey, firstRecord.getTypologyMx3());
             validatedGroups.add(groupedRecord);
         }
@@ -265,7 +301,7 @@ public class TradeDataHandlerService {
         return validatedGroups;
     }
 
-    private static GroupedRecord getGroupedRecord(List<AggregatedDataResponse> records, GroupingKey groupKey, String typology) {
+    private static GroupedRecord getGroupedRecord(List<BaseAggregatedDataResponse> records, GroupingKey groupKey, String typology) {
         String externalDealId = groupKey.getContract();
         String comment0 = groupKey.getComment0();
         String navType = groupKey.getNavType();

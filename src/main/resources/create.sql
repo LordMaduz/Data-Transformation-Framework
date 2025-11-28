@@ -183,6 +183,7 @@ CREATE TABLE h_stg_mrx_ext_dmc (
 
 CREATE TABLE h_murex_booking (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    trade_id BINARY(16) UNIQUE NOT NULL,
     trade_reference VARCHAR(100) NOT NULL,
     trade_execution_date DATE NOT NULL,
     trade_execution_time DATETIME NOT NULL,
@@ -203,7 +204,7 @@ CREATE TABLE h_murex_booking (
 
 CREATE TABLE h_murex_trade_leg (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    trade_id BIGINT NOT NULL,
+    trade_id BINARY(16) NOT NULL,
     leg_type ENUM('NEAR','FAR') NOT NULL,
     deal_ccy VARCHAR(10),
     deal_amount DECIMAL(20,8),
@@ -231,7 +232,7 @@ CREATE TABLE h_murex_trade_leg (
     comment2 VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (trade_id) REFERENCES h_murex_booking(id) ON DELETE CASCADE
+    FOREIGN KEY (trade_id) REFERENCES h_murex_booking(trade_id) ON DELETE CASCADE
 )ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE h_murex_trade_leg_component (

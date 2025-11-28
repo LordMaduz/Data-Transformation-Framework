@@ -1,4 +1,4 @@
-package com.ruchira.murex.kafka.producer;
+package com.ruchira.murex.downstream.kafka.producer;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

@@ -87,8 +87,12 @@ public class NdfTransformationStrategy extends TransformationStrategy {
     }
 
     @Override
-    public boolean supports(String typology) {
-        return FX_NDF_TYPOLOGY.equals(typology);
+    public boolean supports(String instructionEvent, String typology) {
+        // This strategy handles Inception + NDF combination
+        // Accepts null event for backward compatibility
+        boolean eventMatch = instructionEvent == null || "Inception".equalsIgnoreCase(instructionEvent);
+        boolean typologyMatch = FX_NDF_TYPOLOGY.equals(typology);
+        return eventMatch && typologyMatch;
     }
 
     /**
@@ -176,7 +180,7 @@ public class NdfTransformationStrategy extends TransformationStrategy {
         }
 
         // Validate we have exactly 2 records in GroupedRecord for NDF
-        List<AggregatedDataResponse> records = transformationContext.getGroupedRecord().getRecords();
+        List<InceptionAggregatedDataResponse> records = transformationContext.getGroupedRecord().getRecords();
         if (records.size() != 2) {
             throw new TransformationException(
                     String.format("NDF transformation requires exactly 2 records in GroupedRecord, found: %s", records.size()),
@@ -206,11 +210,12 @@ public class NdfTransformationStrategy extends TransformationStrategy {
     }
 
     /**
-     * Create base TransformedMurexTrade objects from FetchDataResponse records
+     * Create base TransformedMurexTrade objects from aggregated data records.
+     * Works with both Inception and RolledOver events using base fields.
      */
-    private List<TransformedMurexTrade> createBaseBookings(List<AggregatedDataResponse> records, String murexBookCode, String traceId) {
+    private List<TransformedMurexTrade> createBaseBookings(List<InceptionAggregatedDataResponse> records, String murexBookCode, String traceId) {
         List<TransformedMurexTrade> bookings = new ArrayList<>();
-        for (AggregatedDataResponse record : records) {
+        for (BaseAggregatedDataResponse record : records) {
             TransformedMurexTrade transformedMurexTrade = dynamicMapper.mapToMurexTradeLeg(record, Map.of(FIELD_MUREX_BOOK_CODE, murexBookCode, FIELD_TRACE_ID, traceId));
             bookings.add(transformedMurexTrade);
         }

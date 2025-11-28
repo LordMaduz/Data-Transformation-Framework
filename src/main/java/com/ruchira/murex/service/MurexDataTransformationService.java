@@ -25,23 +25,28 @@ public class MurexDataTransformationService {
     private final TransformationStrategyFactory strategyFactory;
 
     /**
-     * Generate MurexBookingDTO objects using strategy pattern
+     * Generate MurexBookingDTO objects using strategy pattern.
+     * Uses event-aware strategy selection based on instruction event + typology combination.
      *
-     * @param transformationContext which include The grouped record to process, Filtered Murex configurations,
-     *                              The input currency for transformation calculations, and all grouped records
+     * @param transformationContext Context containing the instruction event, grouped record,
+     *                              filtered Murex configurations, input currency, and all grouped records
+     * @return RecordProcessingResult containing generated DTOs and trades
      */
     @Transactional
     public RecordProcessingResult generateMurexBookings(TransformationContext transformationContext) {
 
+        String instructionEvent = transformationContext.getInstructionEvent();
         String typology = transformationContext.getGroupedRecord().getTypology();
 
         try {
-            TransformationStrategy strategy = strategyFactory.getStrategy(typology);
+            // Use event-aware strategy selection
+            TransformationStrategy strategy = strategyFactory.getStrategy(instructionEvent, typology);
             return strategy.process(transformationContext);
 
         } catch (Exception e) {
             throw new TransformationException(
-                    String.format("Failed to generate Murex bookings for typology: %s", typology),
+                    String.format("Failed to generate Murex bookings for instruction event: %s, typology: %s",
+                            instructionEvent, typology),
                     typology,
                     e
             );

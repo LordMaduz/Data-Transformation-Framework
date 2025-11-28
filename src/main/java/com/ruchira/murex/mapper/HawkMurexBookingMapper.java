@@ -1,9 +1,9 @@
 package com.ruchira.murex.mapper;
 
-import com.ruchira.murex.kafka.model.HAWKMurexBookingRecord;
-import com.ruchira.murex.kafka.model.HAWKMurexBookingTradeLeg;
-import com.ruchira.murex.kafka.model.HawkMurexBookingTradeLegAdditionalFields;
-import com.ruchira.murex.kafka.model.HawkMurexBookingTradeLegComponent;
+import com.ruchira.murex.downstream.model.HAWKMurexBookingRecord;
+import com.ruchira.murex.downstream.model.HAWKMurexBookingTradeLeg;
+import com.ruchira.murex.downstream.model.HawkMurexBookingTradeLegAdditionalFields;
+import com.ruchira.murex.downstream.model.HawkMurexBookingTradeLegComponent;
 import com.ruchira.murex.model.trade.MurexTrade;
 import com.ruchira.murex.model.trade.MurexTradeLeg;
 import com.ruchira.murex.model.trade.MurexTradeLegAdditionalFields;

@@ -51,8 +51,24 @@ public abstract class TransformationStrategy {
      *
      * @param typology The typology to check
      * @return true if this strategy supports the typology
+     * @deprecated Use {@link #supports(String, String)} for event-aware strategy selection
      */
-    public abstract boolean supports(String typology);
+    @Deprecated
+    public boolean supports(String typology) {
+        // Default implementation for backward compatibility
+        // Delegates to event-aware version with null event
+        return supports(null, typology);
+    }
+
+    /**
+     * Check if this strategy can handle the given instruction event and typology combination.
+     * This is the preferred method for strategy selection in multi-event scenarios.
+     *
+     * @param instructionEvent The instruction event type (e.g., "Inception", "RolledOver")
+     * @param typology         The typology to check (e.g., "FX Spot", "FX Swap", "NDF")
+     * @return true if this strategy supports the event-typology combination
+     */
+    public abstract boolean supports(String instructionEvent, String typology);
 
     /**
      * Applies a transformation strategy to generate booking  and related trade details.

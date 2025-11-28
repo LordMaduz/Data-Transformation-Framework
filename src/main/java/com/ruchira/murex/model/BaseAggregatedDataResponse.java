@@ -7,21 +7,27 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
- * @deprecated Use {@link InceptionAggregatedDataResponse} for Inception events
- *             or {@link RolledOverAggregatedDataResponse} for RolledOver events.
- *             This class is maintained for backward compatibility only.
+ * Base aggregated data response containing only core hstg (h_stg_mrx_ext) table fields.
+ * These fields are common across all instruction events (Inception, RolledOver, etc.).
  *
- * <p>Legacy class that has been replaced by event-specific response types:
- * - {@link BaseAggregatedDataResponse}: Common hstg fields for all events
- * - {@link InceptionAggregatedDataResponse}: Inception-specific (base + hn/ha/he fields)
- * - {@link RolledOverAggregatedDataResponse}: RolledOver-specific (base fields only)
+ * <p>Event-specific fields should be added in subclasses:
+ * - {@link InceptionAggregatedDataResponse} for Inception event
+ * - {@link RolledOverAggregatedDataResponse} for RolledOver event
+ * </p>
+ *
+ * <p>This design allows:
+ * - RolledOver to use only base fields (lightweight)
+ * - Inception to extend with additional fields (hn, ha, he tables)
+ * - GroupedRecord to work with base type (polymorphism)
+ * - Strategies to cast to specific types when needed
  * </p>
  */
 @Data
-@Deprecated
-public class AggregatedDataResponse {
+public class BaseAggregatedDataResponse {
 
-    // --- hstg fields ---
+    // --- Core hstg fields (h_stg_mrx_ext table) ---
+    // These fields are available for ALL instruction events
+
     private String txnId;
     private String mxProdCd;
     private String dealUdfPcCode;
@@ -107,19 +113,4 @@ public class AggregatedDataResponse {
     private String sourceDataLocCd;
     private String productCode;
     private LocalDate dlBusinessdate;
-
-    // --- hn fields ---
-    private BigDecimal historicalExchangeRate;
-
-    // --- ha fields ---
-    private String navType;
-    private String exposureCurrency;
-    private String apportionmentCurrency;
-    private BigDecimal hedgeAmtAllocation;
-    private String entityName;
-
-    // --- he fields ---
-    private String entityType;
-    private String entityId;
-    private String murexComment;
 }

@@ -43,8 +43,12 @@ public class FxSpotTransformationStrategy extends TransformationStrategy {
     }
 
     @Override
-    public boolean supports(String typology) {
-        return FX_SPOT_TYPOLOGY.equals(typology);
+    public boolean supports(String instructionEvent, String typology) {
+        // This strategy handles Inception + FX Spot combination
+        // Accepts null event for backward compatibility
+        boolean eventMatch = instructionEvent == null || "Inception".equalsIgnoreCase(instructionEvent);
+        boolean typologyMatch = FX_SPOT_TYPOLOGY.equals(typology);
+        return eventMatch && typologyMatch;
     }
 
     @Override
